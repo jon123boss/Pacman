@@ -10,6 +10,7 @@ BACKGROUND_COLOR = (0, 0, 128)
 WALL_COLOR = (0, 0, 255)
 PACMAN_COLOR = (255, 255, 0)
 PELLET_COLOR = (255, 255, 255)
+POWER_PELLET_COLOR = (255, 165, 0)
 GHOST_COLOR = (255, 0, 0)
 CELL_SIZE = 20
 PACMAN_RADIUS = CELL_SIZE // 2
@@ -19,6 +20,7 @@ GHOST_SPEED = 2
 def load_maze(filename):
     maze = []
     pellets = []
+    power_pellets = []
     with open(filename, 'r') as f:
         for y, line in enumerate(f):
             row = list(line.strip())
@@ -26,9 +28,11 @@ def load_maze(filename):
             for x, char in enumerate(row):
                 if char == '.':
                     pellets.append((x * CELL_SIZE + CELL_SIZE // 2, y * CELL_SIZE + CELL_SIZE // 2))
-    return maze, pellets
+                elif char == 'o':
+                    power_pellets.append((x * CELL_SIZE + CELL_SIZE // 2, y * CELL_SIZE + CELL_SIZE // 2))
+    return maze, pellets, power_pellets
 
-maze, pellets = load_maze('maze.txt')
+maze, pellets, power_pellets = load_maze('maze.txt')
 
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Pac-Man")
@@ -39,9 +43,9 @@ def draw_maze(screen, maze):
             if char == '#':
                 pygame.draw.rect(screen, WALL_COLOR, (x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE))
 
-def draw_pellets(screen, pellets):
+def draw_pellets(screen, pellets, color=PELLET_COLOR):
     for pellet in pellets:
-        pygame.draw.circle(screen, PELLET_COLOR, pellet, 2)
+        pygame.draw.circle(screen, color, pellet, 2)
 
 def draw_pacman(screen, x, y):
     pygame.draw.circle(screen, PACMAN_COLOR, (x, y), PACMAN_RADIUS)
@@ -66,7 +70,14 @@ mouth_end_angle = 0
 
 score = 0
 
-ghosts = [{'x': SCREEN_WIDTH - CELL_SIZE * 2.5, 'y': SCREEN_HEIGHT - CELL_SIZE * 2.5, 'dx': -1, 'dy': 0}]
+ghosts = [
+    {'x': SCREEN_WIDTH - CELL_SIZE * 2.5, 'y': SCREEN_HEIGHT - CELL_SIZE * 2.5, 'dx': -1, 'dy': 0, 'state': 'chase'},
+    {'x': SCREEN_WIDTH - CELL_SIZE * 2.5, 'y': CELL_SIZE * 2.5, 'dx': 1, 'dy': 0, 'state': 'scatter'}
+]
+
+ghost_scatter_time = 0
+scatter_duration = 5000
+ghosts_scattered = False
 
 running = True
 while running:
@@ -102,24 +113,23 @@ while running:
         maze[cell_y][cell_x] = ' '
         score += 10
 
-    for ghost in ghosts:
-        ghost_rect = pygame.Rect(ghost['x'] - PACMAN_RADIUS, ghost['y'] - PACMAN_RADIUS, PACMAN_RADIUS * 2, PACMAN_RADIUS * 2)
-        pacman_rect = pygame.Rect(pacman_x - PACMAN_RADIUS, pacman_y - PACMAN_RADIUS, PACMAN_RADIUS * 2, PACMAN_RADIUS * 2)
-        if ghost_rect.colliderect(pacman_rect):
+    elif maze[cell_y][cell_x] == 'o':
+        maze[cell_y][cell_x] = ' '
+        score += 50
 
-            print("Game Over")
-            pygame.quit()
-            sys.exit()
+        for ghost in ghosts:
+            ghost['state'] = 'frightened'
+        ghost_scatter_time = pygame.time.get_ticks()
+        ghosts_scattered = True
 
     screen.fill(BACKGROUND_COLOR)
 
     draw_maze(screen, maze)
 
-    draw_pellets(screen, pellets)
+    draw_pellets(screen, pellets, PELLET_COLOR)
+    draw_pellets(screen, power_pellets, POWER_PELLET_COLOR)
 
     draw_pacman(screen, int(pacman_x), int(pacman_y))
-
-    draw_ghosts(screen, ghosts)
 
     if mouth_open:
         mouth_end_angle += mouth_animation_speed
@@ -137,9 +147,50 @@ while running:
         mouth_start_angle = 0
         mouth_end_angle = 0
 
+    for ghost in ghosts:
+        if ghost['state'] == 'chase':
+
+            if pacman_x < ghost['x']:
+                ghost['dx'] = -GHOST_SPEED
+            elif pacman_x > ghost['x']:
+                ghost['dx'] = GHOST_SPEED
+            if pacman_y < ghost['y']:
+                ghost['dy'] = -GHOST_SPEED
+            elif pacman_y > ghost['y']:
+                ghost['dy'] = GHOST_SPEED
+        elif ghost['state'] == 'scatter':
+
+            if random.randint(0, 1) == 0:
+                ghost['dx'] = -GHOST_SPEED if random.randint(0, 1) == 0 else GHOST_SPEED
+                ghost['dy'] = 0
+            else:
+                ghost['dx'] = 0
+                ghost['dy'] = -GHOST_SPEED if random.randint(0, 1) == 0 else GHOST_SPEED
+        elif ghost['state'] == 'frightened':
+
+            if pacman_x < ghost['x']:
+                ghost['dx'] = GHOST_SPEED
+            elif pacman_x > ghost['x']:
+                ghost['dx'] = -GHOST_SPEED
+            if pacman_y < ghost['y']:
+                ghost['dy'] = GHOST_SPEED
+            elif pacman_y > ghost['y']:
+                ghost['dy'] = -GHOST_SPEED
+
     font = pygame.font.Font(None, 36)
     score_text = font.render(f"Score: {score}", True, (255, 255, 255))
     screen.blit(score_text, (10, 10))
+
+    for ghost in ghosts:
+        ghost['x'] += ghost['dx']
+        ghost['y'] += ghost['dy']
+
+    if ghosts_scattered:
+        current_time = pygame.time.get_ticks()
+        if current_time - ghost_scatter_time >= scatter_duration:
+            ghosts_scattered = False
+
+    draw_ghosts(screen, ghosts)
 
     pygame.display.flip()
 
