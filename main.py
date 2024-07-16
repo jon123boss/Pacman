@@ -1,5 +1,6 @@
 import pygame
 import sys
+import random
 
 pygame.init()
 
@@ -9,9 +10,11 @@ BACKGROUND_COLOR = (0, 0, 128)
 WALL_COLOR = (0, 0, 255)
 PACMAN_COLOR = (255, 255, 0)
 PELLET_COLOR = (255, 255, 255)
+GHOST_COLOR = (255, 0, 0)
 CELL_SIZE = 20
 PACMAN_RADIUS = CELL_SIZE // 2
 PACMAN_SPEED = 3
+GHOST_SPEED = 2
 
 def load_maze(filename):
     maze = []
@@ -47,17 +50,23 @@ def draw_pacman(screen, x, y):
     if mouth_open:
         pygame.draw.arc(screen, BACKGROUND_COLOR, mouth_rect, mouth_start_angle, mouth_end_angle, 0)
 
+def draw_ghosts(screen, ghosts):
+    for ghost in ghosts:
+        pygame.draw.circle(screen, GHOST_COLOR, (ghost['x'], ghost['y']), PACMAN_RADIUS)
+
 pacman_x = CELL_SIZE * 1.5
 pacman_y = CELL_SIZE * 1.5
-
 movement_x = 0
 movement_y = 0
+
 mouth_open = False
 mouth_animation_speed = 0.1
 mouth_start_angle = 0
 mouth_end_angle = 0
 
 score = 0
+
+ghosts = [{'x': SCREEN_WIDTH - CELL_SIZE * 2.5, 'y': SCREEN_HEIGHT - CELL_SIZE * 2.5, 'dx': -1, 'dy': 0}]
 
 running = True
 while running:
@@ -86,13 +95,21 @@ while running:
     cell_x = int(pacman_x / CELL_SIZE)
     cell_y = int(pacman_y / CELL_SIZE)
     if maze[cell_y][cell_x] == '#':
-
         pacman_x -= movement_x
         pacman_y -= movement_y
 
     elif maze[cell_y][cell_x] == '.':
         maze[cell_y][cell_x] = ' '
         score += 10
+
+    for ghost in ghosts:
+        ghost_rect = pygame.Rect(ghost['x'] - PACMAN_RADIUS, ghost['y'] - PACMAN_RADIUS, PACMAN_RADIUS * 2, PACMAN_RADIUS * 2)
+        pacman_rect = pygame.Rect(pacman_x - PACMAN_RADIUS, pacman_y - PACMAN_RADIUS, PACMAN_RADIUS * 2, PACMAN_RADIUS * 2)
+        if ghost_rect.colliderect(pacman_rect):
+
+            print("Game Over")
+            pygame.quit()
+            sys.exit()
 
     screen.fill(BACKGROUND_COLOR)
 
@@ -101,6 +118,8 @@ while running:
     draw_pellets(screen, pellets)
 
     draw_pacman(screen, int(pacman_x), int(pacman_y))
+
+    draw_ghosts(screen, ghosts)
 
     if mouth_open:
         mouth_end_angle += mouth_animation_speed
